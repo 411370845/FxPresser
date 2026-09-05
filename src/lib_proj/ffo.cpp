@@ -168,6 +168,88 @@ int __fastcall FFO_ImGui_Destroy(std::intptr_t display3d)
 
     return Display3D_Destroy_Hookback.fun(display3d);
 }
+
+// ============ FFO 合成键去抖补丁(运行时内存 patch，不改 exe 文件) ============
+// Patch1 @0x49C081  75 14 -> 90 90   (NOP 掉 jnz，让合成 down 落入真实分支)
+// Patch2 @0x49C050  75 1E -> EB 1E   (jnz 改 jmp，无条件放行合成 KEYUP)
+// 不写死 VA：用锚点特征码扫描定位，写之前先校验原字节，避免打错版本打崩游戏。
+// 结果通过 OutputDebugStringA 输出，用 DebugView 查看 "[ffo-patch] ..."。
+enum class patch_kind
+{
+    nop2,    // 两字节 NOP（Patch1: 75 14 -> 90 90）
+    jnz2jmp, // jnz(0x75) 改 jmp(0xEB)，保留后面的 rel8（Patch2: 75 1E -> EB 1E）
+};
+
+struct ffo_patch
+{
+    const char   *name;
+    const char   *pattern;     // 锚点特征码；? 为通配（相对偏移/绝对地址处用 ?）
+    std::intptr_t site_offset; // 补丁字节相对“匹配起始处”的偏移
+    std::uint8_t  expect_op;   // 期望的原始首字节（校验用）
+    std::uint8_t  expect_rel;  // 期望的原始第二字节（rel8，二次确认）
+    patch_kind    kind;
+};
+
+// ⚠️ 这两条特征码是根据反汇编“反推”的编码，未在真实二进制上核对过。
+//    若 DebugView 显示 matches!=1 或 bytes 不符，说明需要按你运行的版本重新取特征码。
+constexpr ffo_patch kFfoPatches[] = {
+    // 0x49C07A call sub_49BEE9 ; E8 ?? ?? ?? ??
+    // 0x49C07F test al, al     ; 84 C0
+    // 0x49C081 jnz  0x49C097   ; 75 14  <-- 目标，位于匹配起始 +7
+    {"Patch1-down", "E8 ? ? ? ? 84 C0 75 14", 7, 0x75, 0x14, patch_kind::nop2},
+
+    // 0x49C049 cmp [ecx+10Ch],0 ; 83 B9 0C 01 00 00 00
+    // 0x49C050 jnz 0x49C070     ; 75 1E  <-- 目标，位于匹配起始 +7
+    {"Patch2-keyup", "83 B9 0C 01 00 00 00 75 1E", 7, 0x75, 0x1E, patch_kind::jnz2jmp},
+};
+
+bool apply_one_patch(const ffo_patch &p)
+{
+    char         msg[256];
+    byte_pattern patterner;
+    patterner.find_pattern(p.pattern); // 默认扫主 exe(GetModuleHandleA(nullptr))
+
+    if (!patterner.has_size(1)) // 必须唯一命中，0 个或多个都不打
+    {
+        wsprintfA(msg, "[ffo-patch] %s: matches=%u, skip\n", p.name, static_cast<unsigned>(patterner.count()));
+        OutputDebugStringA(msg);
+        return false;
+    }
+
+    std::intptr_t site = patterner.get(0).i(p.site_offset);
+    std::uint8_t  op   = injector::ReadMemory<std::uint8_t>(site, true);
+    std::uint8_t  rel  = injector::ReadMemory<std::uint8_t>(site + 1, true);
+
+    if (op != p.expect_op || rel != p.expect_rel) // 原字节不符：版本不对/定位偏了/已打过
+    {
+        wsprintfA(msg, "[ffo-patch] %s: bytes %02X %02X != %02X %02X, skip\n", p.name, op, rel, p.expect_op,
+                  p.expect_rel);
+        OutputDebugStringA(msg);
+        return false;
+    }
+
+    switch (p.kind)
+    {
+    case patch_kind::nop2:
+        injector::MakeNOP(site, 2, true); // 90 90
+        break;
+    case patch_kind::jnz2jmp:
+        injector::WriteMemory<std::uint8_t>(site, 0xEB, true); // 75 -> EB，rel8 不动
+        break;
+    }
+
+    wsprintfA(msg, "[ffo-patch] %s: OK @ %p\n", p.name, reinterpret_cast<void *>(site));
+    OutputDebugStringA(msg);
+    return true;
+}
+
+void apply_ffo_debounce_patches()
+{
+    for (const auto &p : kFfoPatches)
+    {
+        apply_one_patch(p);
+    }
+}
 } // namespace
 
 void inject_game()
@@ -195,4 +277,7 @@ void inject_game()
     {
         ffo_wndproc = injector::ReadMemory<WNDPROC>(patterner.get(0).i(10));
     }
+
+    // 运行时打去抖补丁（特征码定位 + 原字节校验，失败自动跳过）
+    apply_ffo_debounce_patches();
 }
