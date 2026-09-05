@@ -1,37 +1,53 @@
-﻿name: Build And Release FxPresser
+name: Build FxPresser (CI)
+
 on:
   push:
-    branches: [ master ]
+    branches: [ master, main ]
   pull_request:
-    branches: [ master ]
+    branches: [ master, main ]
+  workflow_dispatch: {}   # 允许在 Actions 页面手动点按钮触发
 
 jobs:
   build:
-    permissions:
-      contents: write
-    runs-on: windows-2025-vs2026
+    runs-on: windows-2022   # GitHub 官方云端 runner，预装 Visual Studio 2022
+    env:
+      VCPKG_ROOT: ${{ github.workspace }}/vcpkg
+      # 开启 vcpkg 二进制缓存，第二次构建可跳过 qt5-base 等的重新编译
+      VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout (含 vcpkg 子模块)
+        uses: actions/checkout@v4
         with:
           submodules: recursive
-      - uses: lukka/get-cmake@latest
-      - uses: lukka/run-vcpkg@v11
-      - uses: lukka/run-cmake@v10
+
+      # 让 vcpkg 的 GitHub Actions 缓存生效
+      - name: Setup vcpkg GHA cache env
+        uses: actions/github-script@v7
         with:
-          configurePreset: 'x86-windows'
-          buildPreset: 'x86-windows-release'
-      - run: Compress-Archive -Path ${{ github.workspace }}/out/x86-windows/src/app_proj/Release/fxpresser.exe -DestinationPath .\fxpresser.zip
-      - run: Compress-Archive -Path ${{ github.workspace }}/out/x86-windows/src/lib_proj/Release/opengl32.dll -DestinationPath .\opengl32.zip
-      - run: echo "SHA_SHORT=$(git rev-parse --short HEAD)" >> $env:GITHUB_ENV
-      - uses: softprops/action-gh-release@v2
+          script: |
+            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
+            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
+
+      - name: 安装最新 CMake + Ninja
+        uses: lukka/get-cmake@latest
+
+      - name: 引导 vcpkg
+        uses: lukka/run-vcpkg@v11
         with:
-          tag_name: "rel-${{ env.SHA_SHORT }}-${{ github.run_id }}"
-          name: Release ${{ env.SHA_SHORT }} ${{ github.run_id }}
-          draft: false
-          prerelease: false
-          generate_release_notes: true
-          files: |
-            fxpresser.zip
-            opengl32.zip
-        env:
-          VCPKG_ROOT: ${{ github.workspace }}/vcpkg
+          vcpkgDirectory: ${{ github.workspace }}/vcpkg
+
+      - name: 配置 + 构建 (Release, x86)
+        uses: lukka/run-cmake@v10
+        with:
+          configurePreset: 'ci-x86-windows'
+          buildPreset: 'ci-x86-windows-release'
+
+      - name: 上传构建产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: FxPresser-x86
+          if-no-files-found: error
+          path: |
+            out/ci-x86-windows/src/app_proj/Release/fxpresser.exe
+            out/ci-x86-windows/src/lib_proj/Release/opengl32.dll
