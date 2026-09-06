@@ -50,6 +50,10 @@ FxMainWindow::FxMainWindow(QWidget *parent) : QMainWindow(parent)
     // 首次自动选择游戏窗口
     autoSelectAndRenameGameWindow(currentHash);
 
+    // 无“全局开关”，勾选按键即开始：初始化计时与缺省触发
+    defaultKeyTriggered = false;
+    resetAllTimeStamps();
+
     pressTimer.setTimerType(Qt::PreciseTimer);
     pressTimer.start(50);
 }
@@ -91,11 +95,6 @@ void FxMainWindow::autoSelectAndRenameGameWindow(const QByteArray &hash)
 
 void FxMainWindow::pressProc()
 {
-    if (!check_global_switch->isChecked())
-    {
-        return;
-    }
-
     int window_index = combo_windows->currentIndex();
 
     if (window_index == -1)
@@ -142,7 +141,6 @@ void FxMainWindow::scanGameWindows()
     playerNameImages.clear();
     playerNameHashes.clear();
     combo_windows->clear();
-    check_global_switch->setChecked(false);
 
     HWND hWindow = FindWindowW(L"QQSwordWinClass", nullptr); // 暂不知道是不是FO/FFO独有类名
 
@@ -486,11 +484,6 @@ void FxMainWindow::setupUI()
         return line;
     };
 
-    QFont switch_font;
-    switch_font.setFamily(QStringLiteral("微软雅黑"));
-    switch_font.setPointSize(20);
-    switch_font.setBold(true);
-
     QStringList supply_keys;
 
     for (int index = 0; index < 10; ++index)
@@ -514,7 +507,9 @@ void FxMainWindow::setupUI()
     combo_windows->setIconSize(playerNameRect.size());
     combo_windows->setItemDelegate(new CharacterBoxDelegate);
     connect(combo_windows, static_cast<void (QComboBox::*)(int)>(&QComboBox::currentIndexChanged), [this](int index) {
-        check_global_switch->setChecked(false);
+        // 切换角色/窗口后重新计时并重置缺省触发
+        defaultKeyTriggered = false;
+        resetAllTimeStamps();
 
         if (index != -1)
         {
@@ -547,21 +542,6 @@ void FxMainWindow::setupUI()
     vlayout_main->addWidget(btn_switch_to_window);
 
     vlayout_main->addWidget(get_h_line());
-
-    check_global_switch = new QCheckBox(QStringLiteral("全局开关"));
-    check_global_switch->setFont(switch_font);
-    connect(check_global_switch, &QCheckBox::toggled, [this](bool checked) {
-        if (checked)
-        {
-            defaultKeyTriggered = false;
-            resetAllTimeStamps();
-        }
-    });
-    auto hlayout_switch = new QHBoxLayout;
-    hlayout_switch->addStretch();
-    hlayout_switch->addWidget(check_global_switch);
-    hlayout_switch->addStretch();
-    vlayout_main->addLayout(hlayout_switch);
 
     spin_global_interval = new QDoubleSpinBox;
     spin_global_interval->setSuffix(" s");
@@ -606,10 +586,12 @@ void FxMainWindow::setupUI()
         connect(check_key, &QCheckBox::toggled, [this, index](bool checked) {
             key_intervals[index]->setEnabled(!checked);
             resetTimeStamp(index);
+            defaultKeyTriggered = false; // 勾选即重新开始（缺省键重新计一次）
         });
 
         connect(check_default, &QCheckBox::toggled, [this, index](bool checked) {
             // 模拟QButtonGroup互斥，并能够全部取消选择
+            defaultKeyTriggered = false;
             if (checked)
             {
                 currentDefaultKey = index;

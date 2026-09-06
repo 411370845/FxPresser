@@ -65,7 +65,6 @@ class FxMainWindow : public QMainWindow
     QLineEdit                       *line_title;
     QPushButton                     *btn_change_title;
     QPushButton                     *btn_switch_to_window;
-    QCheckBox                       *check_global_switch;
     QDoubleSpinBox                  *spin_global_interval;
     std::array<QCheckBox *, 10>      key_checks;
     std::array<QDoubleSpinBox *, 10> key_intervals;
