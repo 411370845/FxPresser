@@ -220,7 +220,9 @@ void FxMainWindow::tryPressKey(HWND window, int key_index, bool force)
 
 void FxMainWindow::pressKey(HWND window, UINT code)
 {
-    // PostMessageA(window, WM_KEYDOWN, code, 0);
+    // 必须发完整的 KEYDOWN + KEYUP，游戏才会当成一次按键；
+    // 之前只发 KEYUP 导致 F1~F10 全部无效（对齐老版 FxPresser-master 的行为）。
+    PostMessageA(window, WM_KEYDOWN, code, 0);
     PostMessageA(window, WM_KEYUP, code, 0);
 }
 
