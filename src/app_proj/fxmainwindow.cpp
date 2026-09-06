@@ -220,10 +220,30 @@ void FxMainWindow::tryPressKey(HWND window, int key_index, bool force)
 
 void FxMainWindow::pressKey(HWND window, UINT code)
 {
-    // 必须发完整的 KEYDOWN + KEYUP，游戏才会当成一次按键；
-    // 之前只发 KEYUP 导致 F1~F10 全部无效（对齐老版 FxPresser-master 的行为）。
-    PostMessageA(window, WM_KEYDOWN, code, 0);
-    PostMessageA(window, WM_KEYUP, code, 0);
+    // 该游戏用 GetAsyncKeyState 检查按键“物理状态”，PostMessage 只塞消息、不改变按键真实状态，
+    // 会被当成合成键去抖吃掉，故 F1~F10 无效。改用 SendInput 注入系统级硬件输入，
+    // 它会真正置位按键状态，能过掉这个检查。
+    // 注意：SendInput 作用于“当前前台窗口”，所以只在游戏处于前台时才注入，避免打到别的程序。
+    if (GetForegroundWindow() != window)
+    {
+        return;
+    }
+
+    WORD scan = static_cast<WORD>(MapVirtualKeyW(code, MAPVK_VK_TO_VSC));
+
+    INPUT inputs[2] = {};
+
+    inputs[0].type       = INPUT_KEYBOARD;
+    inputs[0].ki.wVk     = static_cast<WORD>(code);
+    inputs[0].ki.wScan   = scan;
+    inputs[0].ki.dwFlags = KEYEVENTF_SCANCODE; // 按下
+
+    inputs[1].type       = INPUT_KEYBOARD;
+    inputs[1].ki.wVk     = static_cast<WORD>(code);
+    inputs[1].ki.wScan   = scan;
+    inputs[1].ki.dwFlags = KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP; // 松开
+
+    SendInput(2, inputs, sizeof(INPUT));
 }
 
 QImage FxMainWindow::getGamePicture(HWND window, QRect rect)
