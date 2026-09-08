@@ -1,4 +1,4 @@
-# FxPresser
+# click
 这是一个在游戏中自动释放技能(按F1-F10)的程序，与目前广泛流传的"魔手"是同一类工具。
 
 ## 目的
@@ -13,7 +13,7 @@
 
 ## 使用
 ### 启动
-确保已经登录游戏角色，且游戏窗口已经**最大化**。双击FxPresser.exe启动程序。</br>
+确保已经登录游戏角色，且游戏窗口已经**最大化**。双击click.exe启动程序。</br>
 ![](https://raw.githubusercontent.com/ClansChen/MDPic/main/FxPresser/main.png)</br></br>
 
 ---
@@ -52,7 +52,7 @@
 
 ---
 ### 多开
-- 由于自动定位窗口功能，我并没有设计在程序界面中切换参数，多开通过复制多份FxPresser.exe完成。实际上程序的文件名可以任取，每个exe都会有自己的一份参数。</br>
+- 由于自动定位窗口功能，我并没有设计在程序界面中切换参数，多开通过复制多份click.exe完成。实际上程序的文件名可以任取，每个exe都会有自己的一份参数。</br>
 ![](https://raw.githubusercontent.com/ClansChen/MDPic/main/FxPresser/multi_instance.png)</br></br>
 
 ---

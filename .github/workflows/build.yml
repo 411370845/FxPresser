@@ -49,5 +49,5 @@ jobs:
           name: FxPresser-x86
           if-no-files-found: error
           path: |
-            out/ci-x86-windows/src/app_proj/Release/fxpresser.exe
+            out/ci-x86-windows/src/app_proj/Release/click.exe
             out/ci-x86-windows/src/lib_proj/Release/opengl32.dll

@@ -62,8 +62,7 @@ class FxMainWindow : public QMainWindow
   private:
     QPushButton                     *btn_scan;
     QComboBox                       *combo_windows;
-    QLineEdit                       *line_title;
-    QPushButton                     *btn_change_title;
+    QPushButton                     *btn_toggle;
     QPushButton                     *btn_switch_to_window;
     QDoubleSpinBox                  *spin_global_interval;
     std::array<QCheckBox *, 10>      key_checks;
@@ -93,6 +92,9 @@ class FxMainWindow : public QMainWindow
     int        currentDefaultKey;
     bool       defaultKeyTriggered;
 
+    // 一键启停：为true时才会执行自动按键
+    bool pressingEnabled;
+
     // 在启动的时候运行一次，根据保存的hash查找对应游戏窗口并设置窗口标题
     void autoSelectAndRenameGameWindow(const QByteArray &hash);
 
@@ -105,8 +107,6 @@ class FxMainWindow : public QMainWindow
 
     // 扫描游戏窗口
     void scanGameWindows();
-
-    void changeWindowTitle();
 
     // 尝试执行某个按键
     void tryPressKey(HWND window, int key_index, bool force);

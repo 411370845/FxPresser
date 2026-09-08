@@ -36,6 +36,8 @@ FxMainWindow::FxMainWindow(QWidget *parent) : QMainWindow(parent)
 {
     setupUI();
 
+    setWindowTitle(QStringLiteral("click"));
+
     connect(&pressTimer, &QTimer::timeout, this, &FxMainWindow::pressProc);
 
     QDir dir = QCoreApplication::applicationDirPath();
@@ -52,6 +54,7 @@ FxMainWindow::FxMainWindow(QWidget *parent) : QMainWindow(parent)
 
     // 无“全局开关”，勾选按键即开始：初始化计时与缺省触发
     defaultKeyTriggered = false;
+    pressingEnabled     = false;
     resetAllTimeStamps();
 
     pressTimer.setTimerType(Qt::PreciseTimer);
@@ -85,16 +88,15 @@ void FxMainWindow::autoSelectAndRenameGameWindow(const QByteArray &hash)
     }
 
     combo_windows->setCurrentIndex(index);
-
-    // 找到窗口之后自动更改窗口标题
-    if (index != -1)
-    {
-        changeWindowTitle();
-    }
 }
 
 void FxMainWindow::pressProc()
 {
+    if (!pressingEnabled)
+    {
+        return;
+    }
+
     int window_index = combo_windows->currentIndex();
 
     if (window_index == -1)
@@ -177,23 +179,6 @@ void FxMainWindow::scanGameWindows()
     }
 
     combo_windows->blockSignals(false);
-}
-
-void FxMainWindow::changeWindowTitle()
-{
-    int window_index = combo_windows->currentIndex();
-
-    if (window_index == -1)
-    {
-        return;
-    }
-
-    QString text = line_title->text();
-
-    if (!text.isEmpty())
-    {
-        SetWindowTextW(gameWindows[window_index], text.toStdWString().c_str());
-    }
 }
 
 void FxMainWindow::tryPressKey(HWND window, int key_index, bool force)
@@ -360,7 +345,7 @@ SConfigData FxMainWindow::makeConfigFromUI()
     result.defaultKey     = currentDefaultKey;
 
     result.hash  = currentHash;
-    result.title = line_title->text();
+    result.title = QString();
 
     auto rect = geometry();
 
@@ -387,7 +372,6 @@ void FxMainWindow::applyConfigToUI(const SConfigData &config)
     }
 
     currentHash = config.hash;
-    line_title->setText(config.title);
 
     auto rect = geometry();
 
@@ -518,15 +502,24 @@ void FxMainWindow::setupUI()
     });
     vlayout_main->addWidget(combo_windows);
 
-    line_title         = new QLineEdit;
-    auto hlayout_title = new QHBoxLayout;
-    hlayout_title->addWidget(new QLabel(QStringLiteral("窗口标题")));
-    hlayout_title->addWidget(line_title, 1);
-    vlayout_main->addLayout(hlayout_title);
+    btn_toggle = new QPushButton(QStringLiteral("一键启用"));
+    connect(btn_toggle, &QPushButton::clicked, [this]() {
+        pressingEnabled = !pressingEnabled;
 
-    btn_change_title = new QPushButton(QStringLiteral("修改窗口标题"));
-    connect(btn_change_title, &QPushButton::clicked, this, &FxMainWindow::changeWindowTitle);
-    vlayout_main->addWidget(btn_change_title);
+        if (pressingEnabled)
+        {
+            // 一键启用：恢复自动按键，重新计时并触发一次缺省键
+            btn_toggle->setText(QStringLiteral("一键停用"));
+            defaultKeyTriggered = false;
+            resetAllTimeStamps();
+        }
+        else
+        {
+            // 一键停用：停止自动按键
+            btn_toggle->setText(QStringLiteral("一键启用"));
+        }
+    });
+    vlayout_main->addWidget(btn_toggle);
 
     btn_switch_to_window = new QPushButton(QStringLiteral("切换到游戏窗口"));
     connect(btn_switch_to_window, &QPushButton::clicked, [this]() {

@@ -6,6 +6,8 @@ int main(int argc, char *argv[])
 {
     QFont        fnt(QStringLiteral("微软雅黑"), 10);
     QApplication a(argc, argv);
+    QApplication::setApplicationName(QStringLiteral("click"));
+    QApplication::setOrganizationName(QStringLiteral("click"));
     QApplication::setFont(fnt);
     FxMainWindow w;
 
